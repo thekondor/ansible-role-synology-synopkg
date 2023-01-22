@@ -1,0 +1,3 @@
+black==22.12.0
+mypy==0.991
+mypy-extensions==0.4.3

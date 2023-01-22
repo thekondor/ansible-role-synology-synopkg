@@ -11,7 +11,8 @@ class Synopkg(object):
     def is_installed(self, package_name) -> bool:
         installed = self._get_installed_packages()
         try:
-            return installed.index(package_name)
+            _ = installed.index(package_name)
+            return True
         except ValueError:
             return False
 
@@ -30,11 +31,28 @@ class Synopkg(object):
         ### So w/o sourcing correct ${PATH}, there're weird and meaningless errors occur
         cmd_args = " ".join(["source /etc/profile;", "synopkg", *args])
 
-        process = subprocess.Popen(cmd_args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd="/tmp")
+        process = subprocess.Popen(
+            cmd_args,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd="/tmp",
+        )
         rc = process.wait()
+
+        if not process.stdout:
+            raise subprocess.CalledProcessError(
+                rc, f"{cmd_args}: missing stdout stream"
+            )
         stdout = process.stdout.read()
+
         if rc:
+            if not process.stderr:
+                raise subprocess.CalledProcessError(
+                    rc, f"{cmd_args}: missing stderr stream"
+                )
             stderr = process.stderr.read()
+
             raise subprocess.CalledProcessError(rc, f"{cmd_args}", stdout, stderr)
 
         return stdout
@@ -42,20 +60,23 @@ class Synopkg(object):
 
 def run_module():
     module_args = dict(
-        name=dict(type='str', required=True),
-        installed=dict(type='bool', required=True),
+        name=dict(type="str", required=True),
+        installed=dict(type="bool", required=True),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=False)
 
     try:
-        result = _manage_package_presence(module.params['name'], module.params['installed'])
+        result = _manage_package_presence(
+            module.params["name"], module.params["installed"]
+        )
         module.exit_json(**result)
     except PackageManageError as e:
         module.fail_json(msg=str(e))
 
 
-class PackageManageError(Exception): pass
+class PackageManageError(Exception):
+    pass
 
 
 def _manage_package_presence(package_name, package_installed) -> t.Dict[str, t.Any]:
